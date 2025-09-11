@@ -34,37 +34,53 @@ export default {
             userAgent.includes('subconverter');
 
         if (url.pathname === '/sub') {
+            subConverter = url.searchParams.get('subapi') || subConverter;
+            if (subConverter.includes("http://")) {
+                subConverter = subConverter.split("//")[1];
+                subProtocol = 'http';
+            } else {
+                subConverter = subConverter.split("//")[1] || subConverter;
+            }
+            subConfig = url.searchParams.get('subconfig') || subConfig;
+
+            const uuid_json = await getSubData();
+            proxyIP = url.searchParams.get('proxyip') || proxyIP;
+            const socks5 = (url.searchParams.has('socks5') && url.searchParams.get('socks5') != '') ? url.searchParams.get('socks5') : null;
+            const 全局socks5 = (url.searchParams.has('global')) ? true : false;
+            const 最终路径 = socks5 ? (全局socks5 ? `/snippets/gs5=${socks5}?ed=2560` : `/snippets/s5=${socks5}?ed=2560`) : `/snippets/ip=${proxyIP}?ed=2560`;
+
             const responseHeaders = {
                 "content-type": "text/plain; charset=utf-8",
                 "Profile-Update-Interval": `${SUBUpdateTime}`,
                 "Profile-web-page-url": url.origin,
             };
 
-            if (需要订阅转换的UA.some(ua => userAgent.includes(ua)) &&
-                !userAgent.includes(('CF-Workers-SUB').toLowerCase()) &&
-                !isSubConverterRequest) {
-                subConverter = url.searchParams.get('subapi') || subConverter;
-                if (subConverter.includes("http://")) {
-                    subConverter = subConverter.split("//")[1];
-                    subProtocol = 'http';
-                } else {
-                    subConverter = subConverter.split("//")[1] || subConverter;
-                }
-                subConfig = url.searchParams.get('subconfig') || subConfig;
+            if (url.searchParams.has('sub') && url.searchParams.get('sub').trim() !== '') {
+                const 优选订阅生成器 = url.searchParams.get('sub').trim();
 
-                let subConverterUrl = url.href;
-                responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`;
-                //console.log(subConverterUrl);
-                if (userAgent.includes('sing-box') || userAgent.includes('singbox')) {
-                    subConverterUrl = `${subProtocol}://${subConverter}/sub?target=singbox&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
-                } else if (userAgent.includes('clash') || userAgent.includes('meta') || userAgent.includes('mihomo')) {
-                    subConverterUrl = `${subProtocol}://${subConverter}/sub?target=clash&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
-                } else {
-                    subConverterUrl = `${subProtocol}://${subConverter}/sub?target=auto&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                const randomIndex = Math.floor(Math.random() * uuid_json.length);
+                const selected = uuid_json[randomIndex];
+                const uuid = selected.uuid;
+                const 伪装域名 = selected.host;
+
+                let subConverterUrl = `https://${优选订阅生成器}/sub?uuid=${uuid}&host=${伪装域名}&&path=${encodeURIComponent(最终路径)}`;
+                if (需要订阅转换的UA.some(ua => userAgent.includes(ua)) &&
+                    !userAgent.includes(('CF-Workers-SUB').toLowerCase()) &&
+                    !isSubConverterRequest) {
+
+                    responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`;
+                    //console.log(subConverterUrl);
+                    if (userAgent.includes('sing-box') || userAgent.includes('singbox')) {
+                        subConverterUrl = `${subProtocol}://${subConverter}/sub?target=singbox&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                    } else if (userAgent.includes('clash') || userAgent.includes('meta') || userAgent.includes('mihomo')) {
+                        subConverterUrl = `${subProtocol}://${subConverter}/sub?target=clash&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                    } else {
+                        subConverterUrl = `${subProtocol}://${subConverter}/sub?target=auto&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                    }
                 }
 
                 try {
-                    const subConverterResponse = await fetch(subConverterUrl, { headers: { 'User-Agent': UA } });
+                    const subConverterResponse = await fetch(subConverterUrl, { headers: { 'User-Agent': `v2rayN/${FileName} (https://github.com/cmliu/CF-Workers-BPSUB)` } });
 
                     if (!subConverterResponse.ok) {
                         const errorDetails = {
@@ -75,6 +91,7 @@ export default {
                                 statusText: subConverterResponse.statusText,
                                 url: subConverterUrl,
                                 headers: Object.fromEntries(subConverterResponse.headers.entries()),
+                                userAgent: UA,
                                 timestamp: new Date().toISOString()
                             }
                         };
@@ -95,9 +112,11 @@ export default {
                         });
                     }
 
-                    let subConverterContent = await subConverterResponse.text();
+                    const responseBody = await subConverterResponse.text();
+                    const 返回订阅内容 = userAgent.includes(('Mozilla').toLowerCase()) ? atob(responseBody) : responseBody;
 
-                    return new Response(subConverterContent, { status: 200, headers: responseHeaders });
+                    if (!userAgent.includes(('Mozilla').toLowerCase())) responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName + '-' + 优选订阅生成器)}`;
+                    return new Response(返回订阅内容, { headers: responseHeaders });
                 } catch (error) {
                     const errorDetails = {
                         error: "SubConverter连接异常",
@@ -117,102 +136,152 @@ export default {
                         headers: { 'content-type': 'application/json; charset=utf-8' },
                     });
                 }
-            }
+            } else {
+                if (需要订阅转换的UA.some(ua => userAgent.includes(ua)) &&
+                    !userAgent.includes(('CF-Workers-SUB').toLowerCase()) &&
+                    !isSubConverterRequest) {
 
-            if (url.searchParams.has('ips') && url.searchParams.get('ips').trim() !== '') ips = await 整理成数组(url.searchParams.get('ips'));
-            proxyIP = url.searchParams.get('proxyip') || proxyIP;
-            const socks5 = (url.searchParams.has('socks5') && url.searchParams.get('socks5') != '') ? url.searchParams.get('socks5') : null;
-            const 全局socks5 = (url.searchParams.has('global')) ? true : false;
-            const 标题 = `${url.hostname}:443#${FileName} 订阅到期时间 ${getDateString()}`;
-            let add = [标题];
-            let addapi = [];
-            for (const ip of ips) {
-                if (ip.startsWith('http') && ip.includes('://')) {
-                    addapi.push(ip);
-                } else {
-                    add.push(ip);
-                }
-            }
-            const uuid_json = await getSubData();
-
-            const newAddapi = await 整理优选列表(addapi);
-            // 将newAddapi数组添加到add数组,并对add数组去重
-            add = [...new Set([...add, ...newAddapi])];
-
-            const responseBody = add.map(address => {
-                let port = "443";
-                let addressid = address;
-
-                const match = addressid.match(regex);
-                if (!match) {
-                    if (address.includes(':') && address.includes('#')) {
-                        // 找到第一个冒号和第一个井号的位置
-                        const colonIndex = address.indexOf(':');
-                        const hashIndex = address.indexOf('#');
-                        
-                        const originalAddress = address;
-                        address = originalAddress.substring(0, colonIndex);
-                        port = originalAddress.substring(colonIndex + 1, hashIndex);
-                        addressid = originalAddress.substring(hashIndex + 1);
-                    } else if (address.includes(':')) {
-                        const parts = address.split(':');
-                        address = parts[0];
-                        port = parts[1];
-                    } else if (address.includes('#')) {
-                        const parts = address.split('#');
-                        address = parts[0];
-                        addressid = parts[1];
+                    let subConverterUrl = url.href;
+                    if (userAgent.includes('sing-box') || userAgent.includes('singbox')) {
+                        subConverterUrl = `${subProtocol}://${subConverter}/sub?target=singbox&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                    } else if (userAgent.includes('clash') || userAgent.includes('meta') || userAgent.includes('mihomo')) {
+                        subConverterUrl = `${subProtocol}://${subConverter}/sub?target=clash&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                    } else {
+                        subConverterUrl = `${subProtocol}://${subConverter}/sub?target=auto&url=${encodeURIComponent(subConverterUrl)}&insert=false&config=${encodeURIComponent(subConfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
                     }
 
-                    // 只有当 addressid 看起来像 "address:port" 格式时才进行分割
-                    // 避免截断包含时间的标题（如 "05:05:07"）
-                    if (addressid.includes(':') && /^\S+:\d+$/.test(addressid)) {
-                        addressid = addressid.split(':')[0];
+                    try {
+                        const subConverterResponse = await fetch(subConverterUrl, { headers: { 'User-Agent': `v2rayN/${FileName} (https://github.com/cmliu/CF-Workers-BPSUB)` } });
+
+                        if (!subConverterResponse.ok) {
+                            const errorDetails = {
+                                error: "SubConverter请求失败",
+                                message: `订阅转换服务返回错误状态`,
+                                details: {
+                                    status: subConverterResponse.status,
+                                    statusText: subConverterResponse.statusText,
+                                    url: subConverterUrl,
+                                    headers: Object.fromEntries(subConverterResponse.headers.entries()),
+                                    userAgent: UA,
+                                    timestamp: new Date().toISOString()
+                                }
+                            };
+
+                            // 尝试获取错误响应内容
+                            try {
+                                const errorText = await subConverterResponse.text();
+                                if (errorText) {
+                                    errorDetails.details.responseBody = errorText.substring(0, 1000); // 限制长度
+                                }
+                            } catch (textError) {
+                                errorDetails.details.responseBodyError = textError.message;
+                            }
+
+                            return new Response(JSON.stringify(errorDetails, null, 2), {
+                                status: subConverterResponse.status,
+                                headers: { 'content-type': 'application/json; charset=utf-8' },
+                            });
+                        }
+
+                        let subConverterContent = await subConverterResponse.text();
+
+                        responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`;
+                        return new Response(subConverterContent, { status: 200, headers: responseHeaders });
+                    } catch (error) {
+                        const errorDetails = {
+                            error: "SubConverter连接异常",
+                            message: `无法连接到订阅转换服务或处理响应时发生错误`,
+                            details: {
+                                errorType: error.name || 'UnknownError',
+                                errorMessage: error.message,
+                                url: subConverterUrl,
+                                userAgent: UA,
+                                timestamp: new Date().toISOString(),
+                                stack: error.stack ? error.stack.substring(0, 500) : undefined
+                            }
+                        };
+
+                        return new Response(JSON.stringify(errorDetails, null, 2), {
+                            status: 500,
+                            headers: { 'content-type': 'application/json; charset=utf-8' },
+                        });
+                    }
+                }
+
+                if (url.searchParams.has('ips') && url.searchParams.get('ips').trim() !== '') ips = await 整理成数组(url.searchParams.get('ips'));
+
+                const 标题 = `${url.hostname}:443#${FileName} 订阅到期时间 ${getDateString()}`;
+                let add = [标题];
+                let addapi = [];
+                for (const ip of ips) {
+                    if (ip.startsWith('http') && ip.includes('://')) {
+                        addapi.push(ip);
+                    } else {
+                        add.push(ip);
+                    }
+                }
+
+                const newAddapi = await 整理优选列表(addapi);
+                // 将newAddapi数组添加到add数组,并对add数组去重
+                add = [...new Set([...add, ...newAddapi])];
+
+                const responseBody = add.map(address => {
+                    let port = "443";
+                    let addressid = address;
+
+                    const match = addressid.match(regex);
+                    if (!match) {
+                        if (address.includes(':') && address.includes('#')) {
+                            // 找到第一个冒号和第一个井号的位置
+                            const colonIndex = address.indexOf(':');
+                            const hashIndex = address.indexOf('#');
+
+                            const originalAddress = address;
+                            address = originalAddress.substring(0, colonIndex);
+                            port = originalAddress.substring(colonIndex + 1, hashIndex);
+                            addressid = originalAddress.substring(hashIndex + 1);
+                        } else if (address.includes(':')) {
+                            const parts = address.split(':');
+                            address = parts[0];
+                            port = parts[1];
+                        } else if (address.includes('#')) {
+                            const parts = address.split('#');
+                            address = parts[0];
+                            addressid = parts[1];
+                        }
+
+                        // 只有当 addressid 看起来像 "address:port" 格式时才进行分割
+                        // 避免截断包含时间的标题（如 "05:05:07"）
+                        if (addressid.includes(':') && /^\S+:\d+$/.test(addressid)) {
+                            addressid = addressid.split(':')[0];
+                        }
+
+                    } else {
+                        address = match[1];
+                        port = match[2] || port;
+                        addressid = match[3] || address;
                     }
 
-                } else {
-                    address = match[1];
-                    port = match[2] || port;
-                    addressid = match[3] || address;
-                }
+                    //console.log(address, port, addressid);
+                    let 节点备注 = EndPS;
 
-                //console.log(address, port, addressid);
-                let 节点备注 = EndPS;
+                    // 随机从 uuid_json 中抽取
+                    if (uuid_json.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * uuid_json.length);
+                        const selected = uuid_json[randomIndex];
+                        const uuid = selected.uuid;
+                        const 伪装域名 = selected.host;
 
-                // 随机从 uuid_json 中抽取
-                if (uuid_json.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * uuid_json.length);
-                    const selected = uuid_json[randomIndex];
-                    const uuid = selected.uuid;
-                    const 伪装域名 = selected.host;
-                    const 最终路径 = socks5 ? (全局socks5 ? `/snippets/gs5=${socks5}?ed=2560` : `/snippets/s5=${socks5}?ed=2560`) : `/snippets/ip=${proxyIP}?ed=2560`;
-                    const 为烈士Link = 'vl' + 'es' + `s://${uuid}@${address}:${port}?security=tls&sni=${伪装域名}&type=ws&host=${伪装域名}&path=${encodeURIComponent(最终路径)}&allowInsecure=1&fragment=${encodeURIComponent('1,40-60,30-50,tlshello')}&encryption=none#${encodeURIComponent(addressid + 节点备注)}`;
-                    return 为烈士Link;
-                }
-            }).join('\n');
-            function encodeBase64(data) {
-                const binary = new TextEncoder().encode(data);
-                let base64 = '';
-                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+                        const 为烈士Link = 'vl' + 'es' + `s://${uuid}@${address}:${port}?security=tls&sni=${伪装域名}&type=ws&host=${伪装域名}&path=${encodeURIComponent(最终路径)}&allowInsecure=1&fragment=${encodeURIComponent('1,40-60,30-50,tlshello')}&encryption=none#${encodeURIComponent(addressid + 节点备注)}`;
+                        return 为烈士Link;
+                    }
+                }).join('\n');
 
-                for (let i = 0; i < binary.length; i += 3) {
-                    const byte1 = binary[i];
-                    const byte2 = binary[i + 1] || 0;
-                    const byte3 = binary[i + 2] || 0;
+                const 返回订阅内容 = userAgent.includes(('Mozilla').toLowerCase()) ? responseBody : encodeBase64(responseBody);
 
-                    base64 += chars[byte1 >> 2];
-                    base64 += chars[((byte1 & 3) << 4) | (byte2 >> 4)];
-                    base64 += chars[((byte2 & 15) << 2) | (byte3 >> 6)];
-                    base64 += chars[byte3 & 63];
-                }
-
-                const padding = 3 - (binary.length % 3 || 3);
-                return base64.slice(0, base64.length - padding) + '=='.slice(0, padding);
+                if (!userAgent.includes(('Mozilla').toLowerCase())) responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`;
+                return new Response(返回订阅内容, { headers: responseHeaders });
             }
-            const 返回订阅内容 = userAgent.includes(('Mozilla').toLowerCase()) ? responseBody : encodeBase64(responseBody);
-
-            if (!userAgent.includes(('Mozilla').toLowerCase())) responseHeaders["Content-Disposition"] = `attachment; filename*=utf-8''${encodeURIComponent(FileName)}`;
-            return new Response(返回订阅内容, { headers: responseHeaders });
         } else if (url.pathname === '/uuid.json') {
             try {
                 const result = await getSubData();
@@ -369,8 +438,6 @@ function getDateString() {
 }
 
 async function subHtml(request) {
-    const url = new URL(request.url);
-
     const HTML = `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -667,9 +734,6 @@ async function subHtml(request) {
         .generate-btn {
             width: 100%;
             padding: 18px;
-            background: linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(138, 43, 226, 0.2) 100%);
-            color: #ffffff;
-            border: 2px solid rgba(0, 255, 255, 0.5);
             border-radius: 12px;
             font-size: 1.2em;
             font-weight: 700;
@@ -677,7 +741,14 @@ async function subHtml(request) {
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 255, 255, 0.3);
+            color: #ffffff;
+        }
+        
+        /* 主按钮 - 生成订阅 (青色主题) */
+        .generate-btn:not(.short-url-btn) {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.25) 0%, rgba(138, 43, 226, 0.25) 100%);
+            border: 2px solid rgba(0, 255, 255, 0.6);
+            box-shadow: 0 4px 15px rgba(0, 255, 255, 0.4);
         }
         
         .generate-btn::before {
@@ -691,11 +762,12 @@ async function subHtml(request) {
             transition: left 0.5s;
         }
         
-        .generate-btn:hover {
+        /* 主按钮hover效果 */
+        .generate-btn:not(.short-url-btn):hover {
             transform: translateY(-2px);
-            background: linear-gradient(135deg, rgba(0, 255, 255, 0.3) 0%, rgba(138, 43, 226, 0.3) 100%);
-            border-color: rgba(0, 255, 255, 0.8);
-            box-shadow: 0 8px 25px rgba(0, 255, 255, 0.5);
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.35) 0%, rgba(138, 43, 226, 0.35) 100%);
+            border-color: rgba(0, 255, 255, 0.9);
+            box-shadow: 0 8px 25px rgba(0, 255, 255, 0.6);
         }
         
         .generate-btn:hover::before {
@@ -706,10 +778,71 @@ async function subHtml(request) {
             transform: translateY(0);
         }
         
+        .button-container {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+        }
+        
+        .button-container .generate-btn {
+            flex: 1;
+        }
+        
+        .short-url-btn:disabled {
+            background: linear-gradient(135deg, rgba(128, 128, 128, 0.3) 0%, rgba(64, 64, 64, 0.3) 100%);
+            color: #999999;
+            border-color: rgba(128, 128, 128, 0.3);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none !important;
+        }
+        
+        .short-url-btn:disabled::before {
+            display: none;
+        }
+        
+        .short-url-btn:disabled:hover {
+            background: linear-gradient(135deg, rgba(128, 128, 128, 0.3) 0%, rgba(64, 64, 64, 0.3) 100%);
+            border-color: rgba(128, 128, 128, 0.3);
+            box-shadow: none;
+            transform: none;
+        }
+        
+        /* 副按钮 - 生成短链 (橙色主题) */
+        .short-url-btn:not(:disabled) {
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.2) 0%, rgba(245, 101, 101, 0.2) 100%);
+            border: 2px solid rgba(251, 146, 60, 0.5);
+            color: #ffffff;
+            box-shadow: 0 3px 12px rgba(251, 146, 60, 0.3);
+        }
+        
+        .short-url-btn:not(:disabled):hover {
+            background: linear-gradient(135deg, rgba(251, 146, 60, 0.3) 0%, rgba(245, 101, 101, 0.3) 100%);
+            border-color: rgba(251, 146, 60, 0.7);
+            box-shadow: 0 6px 20px rgba(251, 146, 60, 0.4);
+            transform: translateY(-1px);
+        }
+        
+        .short-url-btn:not(:disabled)::before {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        }
+        
         .result-section {
             margin-top: 35px;
             display: none;
             animation: fadeInUp 0.5s ease-out;
+        }
+        
+
+        
+        .copied {
+            animation: pulse 0.6s ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
         
         @keyframes fadeInUp {
@@ -1245,11 +1378,25 @@ async function subHtml(request) {
         <div class="form-container">
             <!-- 优选IP部分 -->
             <div class="section">
-                <div class="section-title">🎯 优选IP设置</div>
-                <div style="background: rgba(0, 255, 255, 0.1); border: 1px solid rgba(0, 255, 255, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 0.9em; color: #e2e8f0;">
-                    💡 <strong>智能缓存提示：</strong> 您的输入将自动保存到浏览器本地缓存中，下次访问时会自动恢复，让您的配置更加便捷持久。
-                </div>
+                <div class="section-title">⚡️ 优选IP设置</div>
+                
+                <!-- 优选IP模式选择 -->
                 <div class="form-group">
+                    <label style="margin-bottom: 15px;">选择优选IP模式：</label>
+                    <div class="proxy-mode-selector">
+                        <label class="radio-option">
+                            <input type="radio" name="ipMode" value="custom" checked onchange="toggleIPMode()">
+                            <span class="radio-label">🎯 自定义优选IP</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="ipMode" value="subscription" onchange="toggleIPMode()">
+                            <span class="radio-label">🔗 优选订阅生成器</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 自定义优选IP输入框 -->
+                <div class="form-group" id="custom-ip-group">
                     <label for="ips">优选IP列表（每行一个地址）：</label>
                     <textarea id="ips" placeholder="ADD示例：&#10;www.visa.cn#优选域名&#10;127.0.0.1:1234#CFnat&#10;[2606:4700::]:2053#IPv6&#10;&#10;注意：&#10;每行一个地址，格式为 地址:端口#备注&#10;IPv6地址需要用中括号括起来，如：[2606:4700::]:2053&#10;端口不写，默认为 443 端口，如：visa.cn#优选域名&#10;&#10;ADDAPI示例：&#10;https://raw.githubusercontent.com/cmliu/WorkerVless2sub/refs/heads/main/addressesapi.txt&#10;&#10;注意：ADDAPI直接添加直链即可"></textarea>
                     <div class="example">📝 格式说明：
@@ -1257,6 +1404,14 @@ async function subHtml(request) {
 • IPv6: [2606:4700::]:2053#IPv6地址
 • ADDAPI: https://example.com/api.txt
 • 每行一个地址，端口默认为443
+                    </div>
+                </div>
+                
+                <!-- 优选订阅生成器输入框 -->
+                <div class="form-group" id="subscription-generator-group" style="display: none;">
+                    <label for="subGenerator">优选订阅生成器地址：</label>
+                    <input type="text" id="subGenerator" placeholder="sub.google.com" value="">
+                    <div class="example">🔗 输入优选订阅生成器的域名地址，例如：sub.google.com
                     </div>
                 </div>
             </div>
@@ -1364,20 +1519,25 @@ async function subHtml(request) {
             </div>
             
             <!-- 生成按钮 -->
-            <button class="generate-btn" onclick="generateSubscription()">
-                <span>🎉 生成订阅链接</span>
-            </button>
+            <div class="button-container">
+                <button class="generate-btn" onclick="generateSubscription()">
+                    <span>🎉 生成订阅</span>
+                </button>
+                <button class="generate-btn short-url-btn" id="generateShortUrl" onclick="generateShortUrl()" disabled>
+                    <span>🔗 生成短链</span>
+                </button>
+            </div>
             
             <!-- 结果显示 -->
             <div class="result-section" id="result-section">
                 <div class="section-title">📋 订阅链接（点击复制）</div>
-                <div class="result-url" id="result-url" onclick="copyToClipboard()"></div>
+                <div class="result-url" id="subscriptionLink" onclick="copyToClipboard('subscriptionLink')"></div>
                 
                 <!-- 二维码显示 -->
                 <div class="qr-container" id="qr-container">
                     <div class="qr-title">📱 手机扫码订阅</div>
                     <div class="qr-code" id="qrcode"></div>
-                    <div class="qr-description">使用手机扫描二维码快速添加订阅</div>
+                    <div class="qr-description">使用手机扫描二维码快速添加订阅</div> 
                 </div>
             </div>
         </div>
@@ -1395,11 +1555,13 @@ async function subHtml(request) {
         function saveFormData() {
             const formData = {
                 ips: document.getElementById('ips').value,
+                subGenerator: document.getElementById('subGenerator').value,
                 proxyip: document.getElementById('proxyip').value,
                 socks5: document.getElementById('socks5').value,
                 subapi: document.getElementById('subapi').value,
                 subconfig: document.getElementById('subconfig').value,
                 proxyMode: document.querySelector('input[name="proxyMode"]:checked')?.value || 'proxyip',
+                ipMode: document.querySelector('input[name="ipMode"]:checked')?.value || 'custom',
                 globalSocks5: document.getElementById('globalSocks5').checked,
                 timestamp: Date.now()
             };
@@ -1426,10 +1588,20 @@ async function subHtml(request) {
                 
                 // 填充表单字段
                 if (formData.ips) document.getElementById('ips').value = formData.ips;
+                if (formData.subGenerator) document.getElementById('subGenerator').value = formData.subGenerator;
                 if (formData.proxyip) document.getElementById('proxyip').value = formData.proxyip;
                 if (formData.socks5) document.getElementById('socks5').value = formData.socks5;
                 if (formData.subapi) document.getElementById('subapi').value = formData.subapi;
                 if (formData.subconfig) document.getElementById('subconfig').value = formData.subconfig;
+                
+                // 设置IP模式
+                if (formData.ipMode) {
+                    const ipModeRadio = document.querySelector('input[name="ipMode"][value="' + formData.ipMode + '"]');
+                    if (ipModeRadio) {
+                        ipModeRadio.checked = true;
+                        toggleIPMode();
+                    }
+                }
                 
                 // 设置代理模式
                 if (formData.proxyMode) {
@@ -1457,7 +1629,7 @@ async function subHtml(request) {
         
         // 设置表单字段的自动保存事件监听器
         function setupAutoSave() {
-            const fields = ['ips', 'proxyip', 'socks5', 'subapi', 'subconfig'];
+            const fields = ['ips', 'subGenerator', 'proxyip', 'socks5', 'subapi', 'subconfig'];
             
             // 为文本输入字段添加事件监听
             fields.forEach(fieldId => {
@@ -1475,7 +1647,12 @@ async function subHtml(request) {
                 }
             });
             
-            // 为单选框添加事件监听
+            // 为IP模式单选框添加事件监听
+            document.querySelectorAll('input[name="ipMode"]').forEach(radio => {
+                radio.addEventListener('change', saveFormData);
+            });
+            
+            // 为代理模式单选框添加事件监听
             document.querySelectorAll('input[name="proxyMode"]').forEach(radio => {
                 radio.addEventListener('change', saveFormData);
             });
@@ -1489,12 +1666,14 @@ async function subHtml(request) {
         
         function generateSubscription() {
             const ips = document.getElementById('ips').value.trim();
+            const subGenerator = document.getElementById('subGenerator').value.trim();
             const proxyip = document.getElementById('proxyip').value.trim();
             const socks5 = document.getElementById('socks5').value.trim();
             const subapi = document.getElementById('subapi').value.trim();
             const subconfig = document.getElementById('subconfig').value.trim();
             
-            // 获取选择的代理模式
+            // 获取选择的IP模式和代理模式
+            const ipMode = document.querySelector('input[name="ipMode"]:checked').value;
             const proxyMode = document.querySelector('input[name="proxyMode"]:checked').value;
             
             // 保存当前表单数据
@@ -1506,12 +1685,22 @@ async function subHtml(request) {
             
             const params = new URLSearchParams();
             
-            // 处理优选IP
-            if (ips) {
-                // 将每行转换为用|分隔的格式
-                const ipsArray = ips.split('\\n').filter(line => line.trim()).map(line => line.trim());
-                if (ipsArray.length > 0) {
-                    params.append('ips', ipsArray.join('|'));
+            // 根据IP模式处理参数
+            if (ipMode === 'subscription') {
+                // 优选订阅生成器模式
+                if (!subGenerator) {
+                    alert('⚠️ 选择优选订阅生成器模式时，订阅生成器地址不能为空！\\n\\n请输入订阅生成器地址或切换到自定义优选IP模式。');
+                    return;
+                }
+                params.append('sub', subGenerator);
+            } else {
+                // 自定义优选IP模式
+                if (ips) {
+                    // 将每行转换为用|分隔的格式
+                    const ipsArray = ips.split('\\n').filter(line => line.trim()).map(line => line.trim());
+                    if (ipsArray.length > 0) {
+                        params.append('ips', ipsArray.join('|'));
+                    }
                 }
             }
             
@@ -1564,11 +1753,15 @@ async function subHtml(request) {
             
             // 显示结果
             const resultSection = document.getElementById('result-section');
-            const resultUrl = document.getElementById('result-url');
+            const resultUrl = document.getElementById('subscriptionLink');
             const qrContainer = document.getElementById('qr-container');
+            const shortUrlBtn = document.getElementById('generateShortUrl');
             
             resultUrl.textContent = url;
             resultSection.style.display = 'block';
+            
+            // 启用短链按钮
+            shortUrlBtn.disabled = false;
             
             // 生成二维码
             generateQRCode(url);
@@ -1580,25 +1773,74 @@ async function subHtml(request) {
             resultSection.scrollIntoView({ behavior: 'smooth' });
         }
         
-        function copyToClipboard() {
-            const resultUrl = document.getElementById('result-url');
+        // 生成短链接函数
+        function generateShortUrl() {
+            const shortUrlBtn = document.getElementById('generateShortUrl');
+            if (shortUrlBtn.disabled) return;
+            
+            // 添加点击效果
+            shortUrlBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                shortUrlBtn.style.transform = '';
+            }, 200);
+            
+            const subscriptionLink = document.getElementById('subscriptionLink').textContent;
+            const subscriptionLinkElement = document.getElementById('subscriptionLink');
+            
+            // 显示加载状态
+            subscriptionLinkElement.textContent = "正在生成短链接...";
+            
+            // Base64编码
+            const base64Encoded = btoa(subscriptionLink);
+            
+            // 发送POST请求到短链接服务
+            fetch('https://v1.mk/short', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'longUrl=' + encodeURIComponent(base64Encoded)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("短链接响应:", data);
+                if (data.Code === 1 && data.ShortUrl) {
+                    subscriptionLinkElement.textContent = data.ShortUrl;
+                    // 使用原有样式更新二维码
+                    generateQRCode(data.ShortUrl);
+                    subscriptionLinkElement.classList.add('copied');
+                    setTimeout(() => {
+                        subscriptionLinkElement.classList.remove('copied');
+                    }, 300);
+                } else {
+                    subscriptionLinkElement.textContent = "短链接生成失败，请重试";
+                }
+            })
+            .catch(error => {
+                console.error("生成短链接错误:", error);
+                subscriptionLinkElement.textContent = "短链接生成失败，请重试";
+            });
+        }
+        
+        function copyToClipboard(elementId = 'subscriptionLink') {
+            const resultUrl = document.getElementById(elementId);
             const url = resultUrl.textContent;
             
             // 使用 Clipboard API
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(url).then(() => {
-                    showCopySuccess();
+                    showCopySuccess(resultUrl);
                 }).catch(err => {
                     // 降级到传统方法
-                    fallbackCopyTextToClipboard(url);
+                    fallbackCopyTextToClipboard(url, resultUrl);
                 });
             } else {
                 // 降级到传统方法
-                fallbackCopyTextToClipboard(url);
+                fallbackCopyTextToClipboard(url, resultUrl);
             }
         }
         
-        function fallbackCopyTextToClipboard(text) {
+        function fallbackCopyTextToClipboard(text, element) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
             
@@ -1613,7 +1855,7 @@ async function subHtml(request) {
             
             try {
                 document.execCommand('copy');
-                showCopySuccess();
+                showCopySuccess(element);
             } catch (err) {
                 alert('复制失败，请手动复制链接');
             }
@@ -1621,17 +1863,16 @@ async function subHtml(request) {
             document.body.removeChild(textArea);
         }
         
-        function showCopySuccess() {
-            const resultUrl = document.getElementById('result-url');
-            const originalClass = resultUrl.className;
-            const originalText = resultUrl.textContent;
+        function showCopySuccess(element) {
+            const originalClass = element.className;
+            const originalText = element.textContent;
             
-            resultUrl.classList.add('copy-success');
-            resultUrl.textContent = '✅ 复制成功！链接已复制到剪贴板';
+            element.classList.add('copy-success');
+            element.textContent = '✅ 复制成功！链接已复制到剪贴板';
             
             setTimeout(() => {
-                resultUrl.className = originalClass;
-                resultUrl.textContent = originalText;
+                element.className = originalClass;
+                element.textContent = originalText;
             }, 2000);
         }
         
@@ -1687,6 +1928,32 @@ async function subHtml(request) {
             } else {
                 proxyipGroup.style.display = 'block';
                 socks5Group.style.display = 'none';
+            }
+        }
+        
+        // IP模式切换函数
+        function toggleIPMode() {
+            const ipMode = document.querySelector('input[name="ipMode"]:checked').value;
+            const customIpGroup = document.getElementById('custom-ip-group');
+            const subscriptionGeneratorGroup = document.getElementById('subscription-generator-group');
+            
+            // 更新单选框样式
+            document.querySelectorAll('input[name="ipMode"]').forEach(radio => {
+                const radioOption = radio.closest('.radio-option');
+                if (radio.checked) {
+                    radioOption.classList.add('checked');
+                } else {
+                    radioOption.classList.remove('checked');
+                }
+            });
+            
+            // 切换显示内容
+            if (ipMode === 'subscription') {
+                customIpGroup.style.display = 'none';
+                subscriptionGeneratorGroup.style.display = 'block';
+            } else {
+                customIpGroup.style.display = 'block';
+                subscriptionGeneratorGroup.style.display = 'none';
             }
         }
         
@@ -1774,7 +2041,20 @@ async function subHtml(request) {
             // 设置自动保存功能
             setupAutoSave();
             
-            // 初始化单选框状态
+            // 初始化IP模式单选框状态
+            document.querySelectorAll('input[name="ipMode"]').forEach(radio => {
+                const radioOption = radio.closest('.radio-option');
+                if (radio.checked) {
+                    radioOption.classList.add('checked');
+                }
+                
+                // 添加事件监听
+                radio.addEventListener('change', function() {
+                    toggleIPMode();
+                });
+            });
+            
+            // 初始化代理模式单选框状态
             document.querySelectorAll('input[name="proxyMode"]').forEach(radio => {
                 const radioOption = radio.closest('.radio-option');
                 if (radio.checked) {
@@ -1786,6 +2066,10 @@ async function subHtml(request) {
                     toggleProxyMode();
                 });
             });
+            
+            // 执行初始切换以确保显示状态正确
+            toggleIPMode();
+            toggleProxyMode();
             
             // 初始化复选框事件监听
             const globalSocks5Checkbox = document.getElementById('globalSocks5');
@@ -1833,4 +2117,24 @@ async function subHtml(request) {
             "content-type": "text/html;charset=UTF-8",
         },
     });
+}
+
+function encodeBase64(data) {
+    const binary = new TextEncoder().encode(data);
+    let base64 = '';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+    for (let i = 0; i < binary.length; i += 3) {
+        const byte1 = binary[i];
+        const byte2 = binary[i + 1] || 0;
+        const byte3 = binary[i + 2] || 0;
+
+        base64 += chars[byte1 >> 2];
+        base64 += chars[((byte1 & 3) << 4) | (byte2 >> 4)];
+        base64 += chars[((byte2 & 15) << 2) | (byte3 >> 6)];
+        base64 += chars[byte3 & 63];
+    }
+
+    const padding = 3 - (binary.length % 3 || 3);
+    return base64.slice(0, base64.length - padding) + '=='.slice(0, padding);
 }
