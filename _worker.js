@@ -34,6 +34,13 @@ export default {
             userAgent.includes('subconverter');
 
         if (url.pathname === '/sub') {
+            if (!url.searchParams.has('host')) {
+                return new Response(JSON.stringify({ error: '请提供 host 参数' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+
             subConverter = url.searchParams.get('subapi') || subConverter;
             if (subConverter.includes("http://")) {
                 subConverter = subConverter.split("//")[1];
@@ -43,7 +50,7 @@ export default {
             }
             subConfig = url.searchParams.get('subconfig') || subConfig;
 
-            const uuid_json = await getSubData();
+            const uuid_json = await getSubData(url.searchParams.get('host'));
             proxyIP = url.searchParams.get('proxyip') || proxyIP;
             const socks5 = (url.searchParams.has('socks5') && url.searchParams.get('socks5') != '') ? url.searchParams.get('socks5') : null;
             const 全局socks5 = (url.searchParams.has('global')) ? true : false;
@@ -283,8 +290,15 @@ export default {
                 return new Response(返回订阅内容, { headers: responseHeaders });
             }
         } else if (url.pathname === '/uuid.json') {
+            if (!url.searchParams.has('host')) {
+                return new Response(JSON.stringify({ error: '请提供 host 参数' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+
             try {
-                const result = await getSubData();
+                const result = await getSubData(url.searchParams.get('host'));
                 return new Response(JSON.stringify(result, null, 2), {
                     headers: { 'Content-Type': 'application/json' },
                 });
@@ -294,13 +308,56 @@ export default {
                     headers: { 'Content-Type': 'application/json' },
                 });
             }
+        } else if (url.pathname === '/proxy_host.zip') {
+            // 代理主机压缩包下载
+            try {
+                const zipResponse = await fetch('https://raw.githubusercontent.com/cmliu/CF-Workers-BPSUB/main/proxy_host/proxy_host.zip');
+                if (!zipResponse.ok) {
+                    throw new Error('下载失败');
+                }
+                
+                const zipData = await zipResponse.arrayBuffer();
+                return new Response(zipData, {
+                    headers: {
+                        'Content-Type': 'application/zip',
+                        'Content-Disposition': 'attachment; filename="proxy_host.zip"',
+                        'Cache-Control': 'public, max-age=3600'
+                    }
+                });
+            } catch (error) {
+                return new Response('下载失败: ' + error.message, {
+                    status: 500,
+                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                });
+            }
+        } else if (url.pathname === '/proxy_host.js') {
+            // 代理主机Worker代码获取
+            try {
+                const jsResponse = await fetch('https://raw.githubusercontent.com/cmliu/CF-Workers-BPSUB/main/proxy_host/_worker.js');
+                if (!jsResponse.ok) {
+                    throw new Error('获取代码失败');
+                }
+                
+                const jsCode = await jsResponse.text();
+                return new Response(jsCode, {
+                    headers: {
+                        'Content-Type': 'text/plain; charset=utf-8',
+                        'Cache-Control': 'public, max-age=300' // 5分钟缓存，保证及时更新
+                    }
+                });
+            } catch (error) {
+                return new Response('获取代码失败: ' + error.message, {
+                    status: 500,
+                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                });
+            }
         } else {
             return await subHtml(request);
         }
     }
 };
 
-async function getSubData() {
+async function getSubData(host) {
     function parseVless(vlessUrl) {
         try {
             const url = vlessUrl.substring(8);
@@ -318,7 +375,7 @@ async function getSubData() {
             return null;
         }
     }
-    const response = await fetch('https://cfxr.eu.org/getSub');
+    const response = await fetch('https://cfxr.eu.org/getSub?host=' + host);
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -713,7 +770,7 @@ async function subHtml(request) {
         }
         
         textarea {
-            height: 220px;
+            height: 380px;
             resize: vertical;
             line-height: 1.5;
         }
@@ -1314,6 +1371,110 @@ async function subHtml(request) {
             height: 24px;
         }
         
+        /* 选项卡样式 */
+        .tabs-container {
+            margin-top: 20px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .tabs-header {
+            display: flex;
+            background: rgba(26, 32, 44, 0.8);
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 15px 20px;
+            background: transparent;
+            border: none;
+            color: #a0aec0;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .tab-button:hover {
+            color: #e2e8f0;
+            background: rgba(0, 255, 255, 0.1);
+        }
+        
+        .tab-button.active {
+            color: #00ffff;
+            background: rgba(0, 255, 255, 0.15);
+        }
+        
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #00ffff, #00ff9d);
+        }
+        
+        .tab-button:not(:last-child) {
+            border-right: 1px solid rgba(0, 255, 255, 0.2);
+        }
+        
+        .tab-content {
+            padding: 25px;
+            background: rgba(45, 55, 72, 0.8);
+            min-height: 200px;
+        }
+        
+        .tab-panel {
+            display: none;
+            animation: fadeInUp 0.3s ease-out;
+        }
+        
+        .tab-panel.active {
+            display: block;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 代码框点击复制样式 */
+        #workerCode:hover {
+            border-color: rgba(0, 255, 255, 0.4) !important;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2) !important;
+        }
+        
+        #workerCode:active {
+            background: rgba(26, 32, 44, 0.95) !important;
+            transform: scale(0.999);
+        }
+        
+        /* 选项卡响应式 */
+        @media (max-width: 600px) {
+            .tab-button {
+                padding: 12px 15px;
+                font-size: 13px;
+            }
+            
+            .tab-content {
+                padding: 20px 15px;
+            }
+        }
+        
         /* 响应式处理 */
         @media (max-width: 500px) {
             .socks5-header {
@@ -1376,9 +1537,105 @@ async function subHtml(request) {
         </div>
         
         <div class="form-container">
+            <!-- 代理域名设置 -->
+            <div class="section">
+                <div class="section-title">🌐 代理域名设置(必填)</div>
+                <div class="form-group">
+                    <label for="proxyHost">HOST：</label>
+                    <input type="text" id="proxyHost" placeholder="proxy.pages.dev" value="">
+                    
+                    <!-- 部署教程选项卡 -->
+                    <div class="tabs-container">
+                        <div class="tabs-header">
+                            <button class="tab-button active" onclick="switchTab('workers')" id="workers-tab">
+                                ⚡ CF Workers 部署
+                            </button>
+                            <button class="tab-button" onclick="switchTab('pages')" id="pages-tab">
+                                📄 CF Pages 部署
+                            </button>
+                        </div>
+                        <div class="tab-content">
+                            <!-- Workers 选项卡内容 -->
+                            <div class="tab-panel active" id="workers-panel">
+                                <p style="color: #e2e8f0; margin-bottom: 15px; line-height: 1.6;">
+                                    1️⃣ 复制下方代码 → 2️⃣ 进入Cloudflare Workers → 3️⃣ 创建新Worker → 4️⃣ 粘贴代码并部署
+                                </p>
+                                <div style="position: relative;">
+                                    <textarea readonly onclick="copyWorkerCode()" style="
+                                        width: 100%; 
+                                        height: 220px; 
+                                        background: #1a202c; 
+                                        border: 2px solid rgba(0, 255, 255, 0.2);
+                                        border-radius: 8px; 
+                                        padding: 15px; 
+                                        font-family: 'JetBrains Mono', monospace; 
+                                        font-size: 13px; 
+                                        color: #e2e8f0; 
+                                        resize: vertical;
+                                        line-height: 1.4;
+                                        cursor: pointer;
+                                        transition: all 0.3s ease;
+                                    " id="workerCode" title="点击复制代码">正在加载代码...</textarea>
+                                    <button onclick="copyWorkerCode()" style="
+                                        position: absolute;
+                                        top: 10px;
+                                        right: 10px;
+                                        background: rgba(0, 255, 255, 0.2);
+                                        color: #00ffff;
+                                        border: 1px solid rgba(0, 255, 255, 0.4);
+                                        border-radius: 6px;
+                                        padding: 6px 12px;
+                                        font-size: 12px;
+                                        cursor: pointer;
+                                        transition: all 0.3s ease;
+                                    " onmouseover="this.style.background='rgba(0, 255, 255, 0.3)'" 
+                                       onmouseout="this.style.background='rgba(0, 255, 255, 0.2)'">
+                                        📋 复制代码
+                                    </button>
+                                </div>
+                                <div style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; padding: 12px; margin-top: 10px; border-radius: 6px;">
+                                    <span style="color: #ffc107; font-weight: 600;">⚠️ 重要提示：</span>
+                                    <span style="color: #e2e8f0;">必须绑定自定义域名（如：proxy.yourdomain.com），并优先使用自定义域名作为代理域名，这样更稳定可靠</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Pages 选项卡内容 -->
+                            <div class="tab-panel" id="pages-panel">
+                                <p style="color: #e2e8f0; margin-bottom: 15px; line-height: 1.6;">
+                                    1️⃣ 下载压缩包 → 2️⃣ 进入Cloudflare Pages → 3️⃣ 上传项目 → 4️⃣ 部署完成
+                                </p>
+                                <button onclick="downloadProxyHost()" style="
+                                    background: linear-gradient(135deg, rgba(251, 146, 60, 0.2) 0%, rgba(245, 101, 101, 0.2) 100%);
+                                    color: #ffffff;
+                                    border: 2px solid rgba(251, 146, 60, 0.5);
+                                    border-radius: 8px;
+                                    padding: 12px 20px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.3s ease;
+                                    margin-bottom: 10px;
+                                " onmouseover="this.style.borderColor='rgba(251, 146, 60, 0.7)'; this.style.background='linear-gradient(135deg, rgba(251, 146, 60, 0.3) 0%, rgba(245, 101, 101, 0.3) 100%)'" 
+                                   onmouseout="this.style.borderColor='rgba(251, 146, 60, 0.5)'; this.style.background='linear-gradient(135deg, rgba(251, 146, 60, 0.2) 0%, rgba(245, 101, 101, 0.2) 100%)'">
+                                    📦 下载 proxy_host.zip
+                                </button>
+                                <div style="background: rgba(0, 255, 157, 0.1); border-left: 4px solid #00ff9d; padding: 12px; border-radius: 6px;">
+                                    <span style="color: #00ff9d; font-weight: 600;">✅ 部署成功后：</span>
+                                    <span style="color: #e2e8f0;">使用你的Pages域名（如：your-project.pages.dev）作为代理域名</span>
+                                </div>
+                                <div style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; padding: 12px; margin-top: 10px; border-radius: 6px;">
+                                    <span style="color: #ffc107; font-weight: 600;">⚠️ 重要提示：</span>
+                                    <span style="color: #e2e8f0;">建议绑定自定义域名（如：proxy.yourdomain.com），并优先使用自定义域名作为代理域名，这样更稳定可靠</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 优选IP部分 -->
             <div class="section">
-                <div class="section-title">⚡️ 优选IP设置</div>
+                <div class="section-title">⚡️ 优选IP设置(必填)</div>
                 
                 <!-- 优选IP模式选择 -->
                 <div class="form-group">
@@ -1398,7 +1655,7 @@ async function subHtml(request) {
                 <!-- 自定义优选IP输入框 -->
                 <div class="form-group" id="custom-ip-group">
                     <label for="ips">优选IP列表（每行一个地址）：</label>
-                    <textarea id="ips" placeholder="ADD示例：&#10;www.visa.cn#优选域名&#10;127.0.0.1:1234#CFnat&#10;[2606:4700::]:2053#IPv6&#10;&#10;注意：&#10;每行一个地址，格式为 地址:端口#备注&#10;IPv6地址需要用中括号括起来，如：[2606:4700::]:2053&#10;端口不写，默认为 443 端口，如：visa.cn#优选域名&#10;&#10;ADDAPI示例：&#10;https://raw.githubusercontent.com/cmliu/WorkerVless2sub/refs/heads/main/addressesapi.txt&#10;&#10;注意：ADDAPI直接添加直链即可"></textarea>
+                    <textarea id="ips" placeholder="ADD示例：&#10;www.visa.cn#优选域名&#10;127.0.0.1:1234#CFnat&#10;[2606:4700::]:2053#IPv6&#10;&#10;注意：&#10;每行一个地址，格式为 地址:端口#备注&#10;IPv6地址需要用中括号括起来，如：[2606:4700::]:2053&#10;端口不写，默认为 443 端口，如：visa.cn#优选域名&#10;&#10;ADDAPI示例：&#10;https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesapi.txt&#10;&#10;注意：ADDAPI直接添加直链即可"></textarea>
                     <div class="example">📝 格式说明：
 • 域名&IPv4: www.visa.cn#优选域名 或 127.0.0.1:1234#CFnat
 • IPv6: [2606:4700::]:2053#IPv6地址
@@ -1418,7 +1675,7 @@ async function subHtml(request) {
             
             <!-- PROXYIP部分 -->
             <div class="section collapsible collapsed">
-                <div class="section-title" onclick="toggleSection(this)">🔧 落地IP设置</div>
+                <div class="section-title" onclick="toggleSection(this)">🔧 落地IP设置(可选)</div>
                 <div class="section-content">
                     <!-- 选项切换 -->
                     <div class="form-group">
@@ -1501,7 +1758,7 @@ async function subHtml(request) {
             
             <!-- 订阅转换设置 -->
             <div class="section collapsible collapsed">
-                <div class="section-title" onclick="toggleSection(this)">⚙️ 订阅转换设置</div>
+                <div class="section-title" onclick="toggleSection(this)">⚙️ 订阅转换设置(可选)</div>
                 <div class="section-content">
                     <div class="form-group">
                         <label for="subapi">订阅转换后端：</label>
@@ -1556,6 +1813,7 @@ async function subHtml(request) {
             const formData = {
                 ips: document.getElementById('ips').value,
                 subGenerator: document.getElementById('subGenerator').value,
+                proxyHost: document.getElementById('proxyHost').value,
                 proxyip: document.getElementById('proxyip').value,
                 socks5: document.getElementById('socks5').value,
                 subapi: document.getElementById('subapi').value,
@@ -1589,6 +1847,7 @@ async function subHtml(request) {
                 // 填充表单字段
                 if (formData.ips) document.getElementById('ips').value = formData.ips;
                 if (formData.subGenerator) document.getElementById('subGenerator').value = formData.subGenerator;
+                if (formData.proxyHost) document.getElementById('proxyHost').value = formData.proxyHost;
                 if (formData.proxyip) document.getElementById('proxyip').value = formData.proxyip;
                 if (formData.socks5) document.getElementById('socks5').value = formData.socks5;
                 if (formData.subapi) document.getElementById('subapi').value = formData.subapi;
@@ -1629,7 +1888,7 @@ async function subHtml(request) {
         
         // 设置表单字段的自动保存事件监听器
         function setupAutoSave() {
-            const fields = ['ips', 'subGenerator', 'proxyip', 'socks5', 'subapi', 'subconfig'];
+            const fields = ['ips', 'subGenerator', 'proxyHost', 'proxyip', 'socks5', 'subapi', 'subconfig'];
             
             // 为文本输入字段添加事件监听
             fields.forEach(fieldId => {
@@ -1642,8 +1901,46 @@ async function subHtml(request) {
                         saveTimeout = setTimeout(saveFormData, 1000); // 1秒后保存
                     };
                     
-                    element.addEventListener('input', debouncedSave);
-                    element.addEventListener('change', saveFormData);
+                    // 为proxyHost和subGenerator添加特殊的域名提取处理
+                    if (fieldId === 'proxyHost' || fieldId === 'subGenerator') {
+                        element.addEventListener('input', function() {
+                            // 清除之前的定时器
+                            clearTimeout(this._extractTimeout);
+                            
+                            // 设置新的定时器，500ms后自动提取域名
+                            this._extractTimeout = setTimeout(() => {
+                                const originalValue = this.value;
+                                const extractedDomain = extractDomain(originalValue);
+                                
+                                if (extractedDomain !== originalValue && extractedDomain) {
+                                    this.value = extractedDomain;
+                                    // 触发保存
+                                    saveFormData();
+                                    
+                                    // 显示提示
+                                    showDomainExtractionNotice(originalValue, extractedDomain);
+                                }
+                            }, 500);
+                            
+                            // 正常的防抖保存
+                            debouncedSave();
+                        });
+                        
+                        element.addEventListener('change', function() {
+                            const originalValue = this.value;
+                            const extractedDomain = extractDomain(originalValue);
+                            
+                            if (extractedDomain !== originalValue && extractedDomain) {
+                                this.value = extractedDomain;
+                                showDomainExtractionNotice(originalValue, extractedDomain);
+                            }
+                            
+                            saveFormData();
+                        });
+                    } else {
+                        element.addEventListener('input', debouncedSave);
+                        element.addEventListener('change', saveFormData);
+                    }
                 }
             });
             
@@ -1667,10 +1964,17 @@ async function subHtml(request) {
         function generateSubscription() {
             const ips = document.getElementById('ips').value.trim();
             const subGenerator = document.getElementById('subGenerator').value.trim();
+            const proxyHost = document.getElementById('proxyHost').value.trim();
             const proxyip = document.getElementById('proxyip').value.trim();
             const socks5 = document.getElementById('socks5').value.trim();
             const subapi = document.getElementById('subapi').value.trim();
             const subconfig = document.getElementById('subconfig').value.trim();
+            
+            // 检查代理域名是否为空
+            if (!proxyHost) {
+                alert('⚠️ 代理域名不能为空！\\n\\n请输入代理域名，例如：proxy.pages.dev');
+                return;
+            }
             
             // 获取选择的IP模式和代理模式
             const ipMode = document.querySelector('input[name="ipMode"]:checked').value;
@@ -1684,6 +1988,9 @@ async function subHtml(request) {
             let url = \`https://\${currentDomain}/sub\`;
             
             const params = new URLSearchParams();
+            
+            // 添加代理域名参数
+            params.append('host', proxyHost);
             
             // 根据IP模式处理参数
             if (ipMode === 'subscription') {
@@ -1905,6 +2212,191 @@ async function subHtml(request) {
             section.classList.toggle('collapsed');
         }
         
+        // 选项卡切换函数
+        function switchTab(tabName) {
+            // 移除所有活动状态
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            
+            // 激活当前选项卡
+            document.getElementById(tabName + '-tab').classList.add('active');
+            document.getElementById(tabName + '-panel').classList.add('active');
+        }
+        
+        // 加载Worker代码
+        async function loadWorkerCode() {
+            try {
+                const currentDomain = window.location.host;
+                const response = await fetch(\`https://\${currentDomain}/proxy_host.js\`);
+                if (!response.ok) {
+                    throw new Error('获取代码失败');
+                }
+                const code = await response.text();
+                document.getElementById('workerCode').value = code;
+            } catch (error) {
+                console.error('加载Worker代码失败:', error);
+                document.getElementById('workerCode').value = '加载代码失败，请自行从\\nhttps://raw.githubusercontent.com/cmliu/CF-Workers-BPSUB/main/proxy_host/_worker.js\\n获取最新代码';
+            }
+        }
+        
+        // 复制Worker代码
+        function copyWorkerCode() {
+            const workerCodeElement = document.getElementById('workerCode');
+            const code = workerCodeElement.value;
+            
+            // 添加点击视觉反馈
+            workerCodeElement.style.background = 'rgba(0, 255, 255, 0.1)';
+            workerCodeElement.style.borderColor = 'rgba(0, 255, 255, 0.6)';
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(code).then(() => {
+                    showCopySuccessForCodeBox();
+                }).catch(err => {
+                    fallbackCopyTextToClipboard(code, workerCodeElement);
+                    showCopySuccessForCodeBox();
+                });
+            } else {
+                fallbackCopyTextToClipboard(code, workerCodeElement);
+                showCopySuccessForCodeBox();
+            }
+        }
+        
+        // 下载代理主机压缩包
+        function downloadProxyHost() {
+            const currentDomain = window.location.host;
+            const downloadUrl = \`https://\${currentDomain}/proxy_host.zip\`;
+            
+            // 创建临时下载链接
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = 'proxy_host.zip';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // 显示下载提示
+            showDownloadSuccess();
+        }
+        
+        // 显示复制成功（针对按钮）
+        function showCopySuccessForButton(elementId) {
+            const button = document.querySelector(\`#\${elementId} + button\`);
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = '✅ 已复制!';
+                button.style.background = 'rgba(0, 255, 157, 0.3)';
+                button.style.borderColor = '#00ff9d';
+                button.style.color = '#00ff9d';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = 'rgba(0, 255, 255, 0.2)';
+                    button.style.borderColor = 'rgba(0, 255, 255, 0.4)';
+                    button.style.color = '#00ffff';
+                }, 2000);
+            }
+        }
+        
+        // 显示复制成功（针对代码框）
+        function showCopySuccessForCodeBox() {
+            const workerCodeElement = document.getElementById('workerCode');
+            const button = workerCodeElement.nextElementSibling;
+            
+            // 更新代码框样式
+            workerCodeElement.style.background = 'rgba(0, 255, 157, 0.15)';
+            workerCodeElement.style.borderColor = '#00ff9d';
+            workerCodeElement.style.boxShadow = '0 0 15px rgba(0, 255, 157, 0.3)';
+            
+            // 更新按钮样式
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = '✅ 已复制!';
+                button.style.background = 'rgba(0, 255, 157, 0.3)';
+                button.style.borderColor = '#00ff9d';
+                button.style.color = '#00ff9d';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = 'rgba(0, 255, 255, 0.2)';
+                    button.style.borderColor = 'rgba(0, 255, 255, 0.4)';
+                    button.style.color = '#00ffff';
+                }, 2000);
+            }
+            
+            // 恢复代码框原始样式
+            setTimeout(() => {
+                workerCodeElement.style.background = '#1a202c';
+                workerCodeElement.style.borderColor = 'rgba(0, 255, 255, 0.2)';
+                workerCodeElement.style.boxShadow = 'none';
+            }, 2000);
+        }
+        
+        // 显示下载成功
+        function showDownloadSuccess() {
+            // 可以添加一个临时的提示信息
+            const notification = document.createElement('div');
+            notification.textContent = '📦 开始下载 proxy_host.zip...';
+            notification.style.cssText = \`
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(0, 255, 157, 0.9);
+                color: #1a202c;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-weight: 600;
+                z-index: 10000;
+                box-shadow: 0 4px 15px rgba(0, 255, 157, 0.3);
+            \`;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+        
+        // 显示域名提取提示
+        function showDomainExtractionNotice(originalValue, extractedDomain) {
+            const notification = document.createElement('div');
+            notification.innerHTML = \`
+                <div style="margin-bottom: 8px;">
+                    <span style="color: #ffc107; font-weight: 600;">🔧 自动优化：</span>
+                </div>
+                <div style="font-size: 13px; opacity: 0.9;">
+                    <div>原输入：<span style="color: #ff6b6b;">\${originalValue}</span></div>
+                    <div>已优化为：<span style="color: #00ff9d;">\${extractedDomain}</span></div>
+                </div>
+            \`;
+            notification.style.cssText = \`
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(26, 32, 44, 0.95);
+                color: #e2e8f0;
+                padding: 15px 20px;
+                border-radius: 10px;
+                font-weight: 500;
+                z-index: 10000;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+                border: 1px solid rgba(255, 193, 7, 0.3);
+                backdrop-filter: blur(10px);
+                max-width: 300px;
+                word-break: break-all;
+            \`;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 4000);
+        }
+        
         // 代理模式切换函数
         function toggleProxyMode() {
             const proxyMode = document.querySelector('input[name="proxyMode"]:checked').value;
@@ -1955,6 +2447,37 @@ async function subHtml(request) {
                 customIpGroup.style.display = 'block';
                 subscriptionGeneratorGroup.style.display = 'none';
             }
+        }
+        
+        // 提取域名函数
+        function extractDomain(input) {
+            if (!input) return input;
+            
+            let cleaned = input.trim();
+            
+            // 如果包含协议，提取域名部分
+            if (cleaned.includes('://')) {
+                try {
+                    const url = new URL(cleaned);
+                    return url.hostname;
+                } catch (error) {
+                    // 如果URL解析失败，尝试手动提取
+                    const match = cleaned.match(/^https?:\\/\\/([^\\/]+)/);
+                    if (match) {
+                        return match[1];
+                    }
+                }
+            }
+            
+            // 移除路径部分（如果存在）
+            if (cleaned.includes('/')) {
+                cleaned = cleaned.split('/')[0];
+            }
+            
+            // 移除查询参数和hash（如果存在）
+            cleaned = cleaned.split('?')[0].split('#')[0];
+            
+            return cleaned;
         }
         
         // 智能处理 proxyip 格式的函数
@@ -2034,6 +2557,9 @@ async function subHtml(request) {
         // 页面加载完成后的初始化
         document.addEventListener('DOMContentLoaded', function() {
             console.log('页面加载完成，开始初始化...');
+            
+            // 加载Worker代码
+            loadWorkerCode();
             
             // 首先加载缓存的表单数据
             loadFormData();
